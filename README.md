@@ -1,4 +1,3 @@
-```markdown
 # Stock AI Microservice MVP
 
 ## Overview
