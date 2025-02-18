@@ -10,7 +10,7 @@ This project aims to develop a Python microservice that integrates DeepSeek AI t
 - **Telegram Response:** Sends the analysis along with the chart back to the user.
 
 ## Tech Stack
-- **Backend:** Python (FastAPI / Flask)
+- **Backend:** Python (Flask)
 - **AI Processing:** DeepSeek API
 - **Automation Workflow:** n8n (Optional/Future)
 - **Data Retrieval:** chartimage.com API
@@ -20,10 +20,10 @@ This project aims to develop a Python microservice that integrates DeepSeek AI t
 ## Project Roadmap
 
 **Phase 1: Setup & Environment Configuration**
-- [ ] Set up a private GitHub repository.
-- [ ] Initialize a Python project with a virtual environment.
-- [ ] Install necessary dependencies (FastAPI, requests, pydantic, python-telegram-bot, DeepSeek API SDK).
-- [ ] Configure environment variables for API keys.
+- [x] Set up a private GitHub repository.
+- [x] Initialize a Python project with a virtual environment.
+- [x] Install necessary dependencies (Flask, requests, pydantic, python-telegram-bot, DeepSeek API SDK).
+- [x] Configure environment variables for API keys.
 - [ ] Set up a local vector database (if needed).
 
 **Phase 2: Stock Chart Retrieval**
@@ -80,7 +80,7 @@ This project aims to develop a Python microservice that integrates DeepSeek AI t
 
 5. **Run the microservice**
    ```sh
-   uvicorn app:main --reload  # For FastAPI
+   python flask run
    ```
 
 ## Next Steps
