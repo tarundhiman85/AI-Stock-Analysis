@@ -2,6 +2,8 @@ import asyncio
 from flask import Flask, request, jsonify
 import os
 import requests
+from services.ai_analysis import analyze_stock_chart
+from services.cloud_vision import analyze_stock_chart_with_ocr
 from telegram import Bot, Update
 from telegram.ext import Application, MessageHandler, filters, CallbackContext
 
@@ -9,6 +11,7 @@ app = Flask(__name__)
 
 # Load Telegram Bot Token
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+OCR_TOKEN = os.getenv('OCR_TOKEN')
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 # Initialize Telegram Bot Application
@@ -28,27 +31,24 @@ def fetch_stock_chart(stock_symbol):
 # Function to handle incoming messages
 async def handle_message(update: Update, context: CallbackContext):
     print("update", update)
-    if not update.channel_post.text:
-        print("Received an update without a message, ignoring...")
-        return  # Ignore updates that do not contain a message
     
-    chat_id = update.channel_post.chat.id
-    print("chat_id", chat_id)
-    text = update.channel_post.text
-    print("text", text)
+    # Check for the existence of a message or channel_post
+    message = update.message if update.message else update.channel_post
     
-    # await bot.message.reply_text(chat_id=chat_id, text=f"Fetching chart for {text}...")
-    print("textagain", "Fetching chart for ...")
-    sendmessage = await bot.send_message(chat_id=chat_id, text=f"Fetching chart for {text}...")
-    print("sendmessage", sendmessage)
-    # await context.bot.send_message(chat_id=chat_id, text=f"Fetching chart for {text}...")
+    chat_id = message.chat.id
+    text = message.text
+    await bot.send_message(chat_id=chat_id, text=f"Fetching chart for {text}...")
+    
     chart_url = fetch_stock_chart(text)
-    print("chart_url", chart_url)
-        
+    # analysis_prompt = f"Please analyze this stock chart for {text} and provide key insights about price trends, support/resistance levels, and potential trading opportunities."    
+    # analysis_result = analyze_stock_chart(chart_url, analysis_prompt)
     if chart_url:
+        analysis_prompt = await analyze_stock_chart_with_ocr(chart_url, OCR_TOKEN)
+        analysis_result = await analyze_stock_chart(analysis_prompt)
         await bot.send_photo(chat_id=chat_id, photo=chart_url)
+        await bot.send_message(chat_id, analysis_result)
     else:
-        await update.message.reply_text("Failed to fetch the stock chart. Try again later.")
+        await bot.send_message(chat_id=chat_id, text="Failed to fetch the stock chart. Try again later.")
 
 # Add handlers to the application
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
