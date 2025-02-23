@@ -1,55 +1,64 @@
+
 # Stock AI Microservice MVP
 
 ## Overview
-This project aims to develop a Python microservice that integrates DeepSeek AI to analyze stock charts and generate insights. The MVP will work as follows:
+This project develops a **Python microservice** that integrates **DeepSeek AI** to analyze stock charts and generate insights. The MVP workflow includes:
 
-- **Telegram Trigger:** Listens for stock-related messages from users.
-- **Stock Chart Retrieval:** Uses chartimage.com API to fetch stock charts with technical indicators.
-- **Basic Analysis:** Extracts key insights from the chart.
-- **Detailed Analysis:** Enhances the insights using DeepSeek AI.
-- **Telegram Response:** Sends the analysis along with the chart back to the user.
+1. **Telegram Trigger**: Listens for stock-related messages from users.  
+2. **Stock Chart Retrieval**: Uses `chartimage.com` API to fetch stock charts with technical indicators.  
+3. **OCR-Based Chart Analysis**: Extracts text from the stock chart using **OCR.space API**.  
+4. **AI-Driven Insights**: Enhances extracted data using **DeepSeek AI**.  
+5. **Telegram Response**: Sends the AI-generated insights along with the chart back to the user.
+
+---
 
 ## Tech Stack
-- **Backend:** Python (Flask)
-- **AI Processing:** DeepSeek API
-- **Automation Workflow:** n8n (Optional/Future)
-- **Data Retrieval:** chartimage.com API
-- **Messaging:** Telegram Bot API
-- **Storage (Optional):** Vector Database (e.g., ChromaDB)
+- **Backend**: Python (Flask)
+- **AI Processing**: DeepSeek API
+- **OCR Processing**: OCR.space API
+- **Automation Workflow**: n8n (Optional/Future)
+- **Data Retrieval**: chartimage.com API
+- **Messaging**: Telegram Bot API
+- **Storage (Optional)**: Vector Database (e.g., ChromaDB)
+
+---
 
 ## Project Roadmap
 
-**Phase 1: Setup & Environment Configuration**
+### Phase 1: Setup & Environment Configuration
 - [x] Set up a private GitHub repository.
 - [x] Initialize a Python project with a virtual environment.
-- [x] Install necessary dependencies (Flask, requests, pydantic, python-telegram-bot, DeepSeek API SDK).
+- [x] Install necessary dependencies (`Flask`, `requests`, `pydantic`, `python-telegram-bot`, `DeepSeek API SDK`, `python-dotenv`).
 - [x] Configure environment variables for API keys.
 - [ ] Set up a local vector database (if needed).
 
-**Phase 2: Stock Chart Retrieval**
-- [ ] Implement a function to fetch stock charts from chartimage.com.
-- [ ] Ensure the function can handle different stock symbols and timeframes.
-- [ ] Validate API responses and handle errors.
+### Phase 2: Stock Chart Retrieval
+- [x] Implement a function to fetch stock charts from `chartimage.com`.
+- [x] Ensure the function handles different stock symbols and timeframes.
+- [x] Validate API responses and handle errors.
 
-**Phase 3: AI Analysis**
-- [ ] Integrate DeepSeek API for basic analysis.
-- [ ] Process stock charts and generate initial insights.
-- [ ] Store and retrieve data using a vector database (if required).
+### Phase 3: OCR-Based Chart Processing
+- [x] Integrate **OCR.space API** to extract text from stock charts.
+- [x] Process OCR results to generate structured data.
+- [ ] Optimize OCR text processing for better accuracy.
 
-**Phase 4: Enhanced Analysis with AI**
-- [ ] Pass the initial insights to DeepSeek API for a more refined analysis.
-- [ ] Structure responses in a user-friendly format.
+### Phase 4: AI-Driven Analysis
+- [x] Pass OCR-extracted text to **DeepSeek API** for enhanced insights.
+- [x] Structure AI-generated insights in a user-friendly format.
+- [ ] Implement additional AI enhancements (sentiment analysis, news correlation).
 
-**Phase 5: Telegram Bot Integration**
-- [ ] Set up a Telegram bot using python-telegram-bot.
-- [ ] Implement a command handler to listen for stock-related messages.
-- [ ] Ensure smooth interaction between Telegram, AI, and chart retrieval.
+### Phase 5: Telegram Bot Integration
+- [x] Set up a Telegram bot using `python-telegram-bot`.
+- [x] Implement a command handler to listen for stock-related messages.
+- [x] Ensure smooth interaction between Telegram, AI, and chart retrieval.
 
-**Phase 6: Testing & Deployment**
-- [ ] Test API endpoints using Postman or cURL.
-- [ ] Conduct performance testing on DeepSeek integration.
-- [ ] Deploy the microservice on a VPS / Cloud instance (e.g., AWS, GCP, or DigitalOcean).
+### Phase 6: Testing & Deployment
+- [ ] Test API endpoints using **Postman** or **cURL**.
+- [ ] Conduct performance testing on DeepSeek and OCR integrations.
+- [ ] Deploy the microservice on a **VPS / Cloud instance** (AWS, GCP, or DigitalOcean).
 - [ ] Set up logging and monitoring for debugging.
+
+---
 
 ## How to Run Locally
 
@@ -84,6 +93,7 @@ This project aims to develop a Python microservice that integrates DeepSeek AI t
    ```
 
 ## Next Steps
+- Improved OCR accuracy for better text extraction
 - Implement additional AI enhancements (sentiment analysis, news correlation).
 - Expand Telegram bot features (custom commands, user preferences).
 - Optimize for scalability and cost efficiency.
