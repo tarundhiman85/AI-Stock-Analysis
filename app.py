@@ -67,8 +67,8 @@ async def handle_message(update: Update, context: CallbackContext):
     await bot.send_message(chat_id=chat_id, text=f"Fetching chart for {text}...")
     
     chart_url = fetch_stock_chart(text)
-    analysis_prompt = f"Please analyze this stock chart for {text} and provide key insights about price trends, support/resistance levels, and potential trading opportunities."    
-    analysis_result = analyze_stock_chart(chart_url, analysis_prompt)
+    # analysis_prompt = f"Please analyze this stock chart for {text} and provide key insights about price trends, support/resistance levels, and potential trading opportunities."    
+    # analysis_result = analyze_stock_chart(chart_url, analysis_prompt)
     if chart_url:
         analysis_prompt = await analyze_stock_chart_with_ocr(chart_url, OCR_TOKEN)
         analysis_result = await analyze_stock_chart(analysis_prompt)
