@@ -6,6 +6,10 @@ from services.ai_analysis import analyze_stock_chart
 from services.cloud_vision import analyze_stock_chart_with_ocr
 from telegram import Bot, Update
 from telegram.ext import Application, MessageHandler, filters, CallbackContext
+import http.client, urllib.parse
+import json
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -28,6 +32,29 @@ def fetch_stock_chart(stock_symbol):
     else:
         return "Error fetching chart."
 
+
+async def fetch_news_source(stock_symbol):
+    FINANCE_NEWS_API = os.getenv('FINANCE_NEWS_API')
+    conn = http.client.HTTPSConnection('api.marketaux.com')
+    params = urllib.parse.urlencode({
+       'api_token': FINANCE_NEWS_API,
+       'symbols': stock_symbol,
+       'language': 'en,hi',
+       'limit': 3,
+    })
+    conn.request('GET', '/v1/news/all?{}'.format(params))
+    res = conn.getresponse()
+    data = res.read()
+    if data:
+        response_json = json.loads(data.decode('utf-8'))
+        print("res json", response_json)
+        news_list = [{"title": article["title"], "url": article["url"]} for article in response_json.get("data", [])]
+        print("News List:", news_list)
+        return news_list
+    else:
+        return "Error fetching news."
+
+
 # Function to handle incoming messages
 async def handle_message(update: Update, context: CallbackContext):
     print("update", update)
@@ -47,6 +74,14 @@ async def handle_message(update: Update, context: CallbackContext):
         analysis_result = await analyze_stock_chart(analysis_prompt)
         await bot.send_photo(chat_id=chat_id, photo=chart_url)
         await bot.send_message(chat_id, analysis_result)
+        news_source = await fetch_news_source(text)
+        if news_source:
+            await bot.send_message(chat_id, text=f"Fetching News Article Related to {text}...")
+            for news in news_source:
+                news_message = f"📢 *Title:* {news['title']}\n🔗 [Read More]({news['url']})"
+                await bot.send_message(chat_id, text=news_message, parse_mode="Markdown")
+        else:
+            await bot.send_message(chat_id, text="No news found for this stock.")
     else:
         await bot.send_message(chat_id=chat_id, text="Failed to fetch the stock chart. Try again later.")
 
