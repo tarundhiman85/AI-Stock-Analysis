@@ -23,7 +23,7 @@ application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
 # Function to fetch stock chart
 def fetch_stock_chart(stock_symbol):
-    api_key = os.getenv('CHARTIMAGE_API_KEY')
+    api_key = 'W4DIqD3mO9cWUfwnzmIN13XXNiv19J93DBYH834j'
     chart_url = f"https://api.chart-img.com/v1/tradingview/advanced-chart/storage?symbol=NASDAQ:{stock_symbol}&interval=4h&key={api_key}"
     response = requests.get(chart_url)
     
@@ -67,11 +67,10 @@ async def handle_message(update: Update, context: CallbackContext):
     await bot.send_message(chat_id=chat_id, text=f"Fetching chart for {text}...")
     
     chart_url = fetch_stock_chart(text)
-    # analysis_prompt = f"Please analyze this stock chart for {text} and provide key insights about price trends, support/resistance levels, and potential trading opportunities."    
-    # analysis_result = analyze_stock_chart(chart_url, analysis_prompt)
+    
     if chart_url:
         analysis_prompt = await analyze_stock_chart_with_ocr(chart_url, OCR_TOKEN)
-        analysis_result = await analyze_stock_chart(analysis_prompt)
+        analysis_result = await analyze_stock_chart(text, analysis_prompt)
         await bot.send_photo(chat_id=chat_id, photo=chart_url)
         await bot.send_message(chat_id, analysis_result)
         news_source = await fetch_news_source(text)
