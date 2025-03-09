@@ -3,12 +3,12 @@ from langchain.llms.base import LLM
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda
 from pydantic import Field
-import requests
+import aiohttp
 from typing import Any, Optional, List
 
 # Define global API keys for Alpha Vantage and DeepSeek
-ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY') 
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY') or ""
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY') or ""
 
 class DeepSeekLLM(LLM):
     """Custom LangChain LLM class for DeepSeek AI."""
@@ -20,7 +20,9 @@ class DeepSeekLLM(LLM):
     
     def __init__(self, api_key=None, **kwargs):
         """Initialize the DeepSeek LLM with API key."""
-        api_key = api_key or DEEPSEEK_API_KEY  
+        api_key = api_key or DEEPSEEK_API_KEY or ""
+        if not api_key:
+            print("Warning: DeepSeek API key is not set")
         super().__init__(api_key=api_key, **kwargs)
         
     @property
@@ -33,7 +35,24 @@ class DeepSeekLLM(LLM):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> str:
-        """Call the DeepSeek API and return the response."""
+        """Call the DeepSeek API and return the response (sync version kept for LangChain compatibility)."""
+        # This is kept to maintain compatibility with the LangChain LLM base class
+        # In practice, we'll be using the async version
+        raise NotImplementedError("Please use the async version of this method")
+    
+    async def _acall(
+        self,
+        prompt: str,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> str:
+        """Asynchronously call the DeepSeek API and return the response."""
+        if not prompt:
+            return "No prompt provided for analysis."
+            
+        if not self.api_key:
+            return "API key not configured. Please set the DEEPSEEK_API_KEY environment variable."
+            
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -50,15 +69,19 @@ class DeepSeekLLM(LLM):
             payload["stop"] = stop
         
         try:
-            response = requests.post(self.api_url, json=payload, headers=headers)
-            response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
-        except requests.exceptions.RequestException as e:
-            print(f"DeepSeek API error: {str(e)}, falling back to original implementation")
-            return fallback_analyze_stock_chart(prompt)
-        except KeyError as e:
-            print(f"DeepSeek API response parsing error: {str(e)}, falling back to original implementation")
-            return fallback_analyze_stock_chart(prompt)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.api_url, json=payload, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        print(f"DeepSeek API error: {response.status} - {error_text}")
+                        return "Analysis failed. Please try again later."
+                    
+                    response_json = await response.json()
+                    result = response_json.get('choices', [{}])[0].get('message', {}).get('content')
+                    return result if result else "No analysis results obtained."
+        except Exception as e:
+            print(f"DeepSeek API error: {str(e)}")
+            return "Analysis failed. Please try again later."
     
     @property
     def _identifying_params(self) -> dict:
@@ -68,38 +91,23 @@ class DeepSeekLLM(LLM):
             "temperature": self.temperature
         }
 
-# Fallback function
-def fallback_analyze_stock_chart(prompt):
-    """Fallback stock analysis function."""
-    deepseek_url = "https://api.deepseek.com/v1/chat/completions"
-    
-    headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",  
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-    
-    try:
-        response = requests.post(deepseek_url, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()['choices'][0]['message']['content']
-    except requests.exceptions.RequestException as e:
-        return f"Error: {str(e)}"
-    except KeyError:
-        return "Error parsing API response"
-
-def fetch_historical_data(stock_symbol, output_size="compact"):
+# Asynchronous fetch historical data function
+async def async_fetch_historical_data(stock_symbol, output_size="compact"):
     """
-    Fetch historical stock data (price and volume) from Alpha Vantage API.
+    Asynchronously fetch historical stock data (price and volume) from Alpha Vantage API.
     
     :param stock_symbol: Stock symbol (e.g., 'AAPL')
     :param output_size: 'compact' (last 100 data points) or 'full' (full-length data)
-    :return: List of dates with price and volume data, or None if there's an error.
+    :return: List of dates with price and volume data, or empty list if there's an error.
     """
+    if not stock_symbol:
+        print("No stock symbol provided")
+        return []
+        
+    if not ALPHA_VANTAGE_API_KEY:
+        print("Alpha Vantage API key not set")
+        return []
+        
     url = "https://www.alphavantage.co/query"
     params = {
         "function": "TIME_SERIES_DAILY",
@@ -108,39 +116,89 @@ def fetch_historical_data(stock_symbol, output_size="compact"):
         "outputsize": output_size  
     }
     
-    response = requests.get(url, params=params)
-    
-    if response.status_code == 200:
-        data = response.json()
-        
-        try:
-            # Parse the data into a list of tuples (date, close price, volume)
-            time_series = data.get("Time Series (Daily)", {})
-            historical_data = []
-            
-            for date, values in time_series.items():
-                close_price = float(values["4. close"])
-                volume = int(values["5. volume"])
-                historical_data.append((date, close_price, volume))
-            
-            return historical_data
-        except KeyError:
-            print(f"Error in parsing data: {data}")
-            return None
-    else:
-        print(f"Error fetching data from Alpha Vantage: {response.status_code}")
-        return None
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    try:
+                        # Parse the data into a list of tuples (date, close price, volume)
+                        time_series = data.get("Time Series (Daily)", {})
+                        if not time_series:
+                            print(f"No time series data found for {stock_symbol}")
+                            return []
+                            
+                        historical_data = []
+                        
+                        for date, values in time_series.items():
+                            try:
+                                close_price = float(values.get("4. close", 0))
+                                volume = int(values.get("5. volume", 0))
+                                historical_data.append((date, close_price, volume))
+                            except (ValueError, TypeError) as e:
+                                print(f"Error parsing data for date {date}: {e}")
+                        
+                        return historical_data
+                    except KeyError as e:
+                        print(f"Error in parsing data: {e}")
+                        return []
+                else:
+                    error_text = await response.text()
+                    print(f"Error fetching data from Alpha Vantage: {response.status} - {error_text}")
+                    return []
+    except Exception as e:
+        print(f"Exception when fetching historical data: {e}")
+        return []
 
-# Create the enhanced stock analysis chain with historical data
-def create_stock_analysis_chain():
+def format_historical_data(data):
+    """Format historical data into a readable table format."""
+    if not data:
+        return "No historical data available."
+    
+    # Sort data by date (newest first)
+    sorted_data = sorted(data, key=lambda x: x[0], reverse=True)
+    
+    # Create a formatted table with headers
+    formatted = "Date | Close Price | Volume\n"
+    formatted += "-----|------------|--------\n"
+    
+    # Add data rows (limit to 30 entries to keep prompt size reasonable)
+    for date, price, volume in sorted_data[:30]:
+        formatted += f"{date} | ${price:.2f} | {volume:,}\n"
+        
+    # Add summary statistics
+    try:
+        oldest_date = sorted_data[-1][0]
+        newest_date = sorted_data[0][0]
+        price_change = sorted_data[0][1] - sorted_data[-1][1]
+        price_change_pct = (price_change / sorted_data[-1][1]) * 100 if sorted_data[-1][1] != 0 else 0
+        
+        avg_volume = sum(volume for _, _, volume in sorted_data) / len(sorted_data) if sorted_data else 0
+        max_volume = max(volume for _, _, volume in sorted_data) if sorted_data else 0
+        min_volume = min(volume for _, _, volume in sorted_data) if sorted_data else 0
+        
+        summary = f"\nSummary Statistics:\n"
+        summary += f"- Date Range: {oldest_date} to {newest_date}\n"
+        summary += f"- Price Change: ${price_change:.2f} ({price_change_pct:.2f}%)\n"
+        summary += f"- Average Volume: {avg_volume:,.0f}\n"
+        summary += f"- Volume Range: {min_volume:,} to {max_volume:,}\n"
+        
+        return formatted + summary
+    except Exception as e:
+        print(f"Error generating summary statistics: {e}")
+        return formatted + "\nUnable to generate summary statistics."
+
+# Create asynchronous stock analysis chain
+def create_async_stock_analysis_chain():
     """
-    Create a LangChain for stock chart analysis with DeepSeek API,
+    Create an asynchronous LangChain for stock chart analysis with DeepSeek API,
     enhanced with historical data from Alpha Vantage.
     
     :return: A runnable chain for stock analysis
     """
     # Initialize LLM with DeepSeek API key
-    llm = DeepSeekLLM(api_key=DEEPSEEK_API_KEY)  # Use the global DEEPSEEK_API_KEY
+    llm = DeepSeekLLM(api_key=DEEPSEEK_API_KEY)
     
     # Define the prompt template with enhanced historical data
     template = """
@@ -184,56 +242,25 @@ def create_stock_analysis_chain():
     
     prompt_template = PromptTemplate(
         input_variables=["stock_symbol", "historical_data", "additional_context"],
-        template=template,
+        template=template
     )
     
-    def format_historical_data(data):
-        """Format historical data into a readable table format."""
-        if not data:
-            return "No historical data available."
+    async def async_chain_func(inputs: dict) -> str:
+        stock_symbol = inputs.get("stock_symbol") or ""
+        additional_context = inputs.get("additional_context") or ""
         
-        # Sort data by date (newest first)
-        sorted_data = sorted(data, key=lambda x: x[0], reverse=True)
-        
-        # Create a formatted table with headers
-        formatted = "Date | Close Price | Volume\n"
-        formatted += "-----|------------|--------\n"
-        
-        # Add data rows (limit to 30 entries to keep prompt size reasonable)
-        for date, price, volume in sorted_data[:30]:
-            formatted += f"{date} | ${price:.2f} | {volume:,}\n"
-            
-        # Add summary statistics
-        oldest_date = sorted_data[-1][0]
-        newest_date = sorted_data[0][0]
-        price_change = sorted_data[0][1] - sorted_data[-1][1]
-        price_change_pct = (price_change / sorted_data[-1][1]) * 100
-        
-        avg_volume = sum(volume for _, _, volume in sorted_data) / len(sorted_data)
-        max_volume = max(volume for _, _, volume in sorted_data)
-        min_volume = min(volume for _, _, volume in sorted_data)
-        
-        summary = f"\nSummary Statistics:\n"
-        summary += f"- Date Range: {oldest_date} to {newest_date}\n"
-        summary += f"- Price Change: ${price_change:.2f} ({price_change_pct:.2f}%)\n"
-        summary += f"- Average Volume: {avg_volume:,.0f}\n"
-        summary += f"- Volume Range: {min_volume:,} to {max_volume:,}\n"
-        
-        return formatted + summary
-    
-    def chain_func(inputs: dict) -> str:
-        stock_symbol = inputs.get("stock_symbol")
-        additional_context = inputs.get("additional_context", "")
+        if not stock_symbol:
+            return "Error: No stock symbol provided."
         
         # If historical_data is provided, use it; otherwise fetch it
         historical_data = inputs.get("historical_data")
         
-        if not historical_data and stock_symbol:
+        if not historical_data:
             # Fetch historical data from Alpha Vantage
-            historical_data = fetch_historical_data(stock_symbol)
+            historical_data = await async_fetch_historical_data(stock_symbol)
             
             if not historical_data:
-                return "Error: Unable to fetch historical data for the specified stock symbol."
+                return f"Error: Unable to fetch historical data for {stock_symbol}. Please check if the symbol is correct and try again."
         
         # Format the historical data for the prompt
         formatted_data = format_historical_data(historical_data) if historical_data else "No historical data provided."
@@ -245,39 +272,40 @@ def create_stock_analysis_chain():
             additional_context=additional_context
         )
         
-        return llm._call(prompt)
+        try:
+            result = await llm._acall(prompt)
+            return result or f"No analysis could be generated for {stock_symbol}."
+        except Exception as e:
+            print(f"Error in async_chain_func: {e}")
+            return f"Error analyzing {stock_symbol}. Please try again later."
     
-    return RunnableLambda(chain_func)
+    return RunnableLambda(async_chain_func)
 
-# Stock analysis function - now synchronous
-async def analyze_stock_chart(stock_symbol, additional_context=""):
+# Asynchronous function for stock analysis
+async def analyze_stock_chart_async(stock_symbol, additional_context=""):
     """
-    Analyze stock chart data using LangChain with historical data.
+    Asynchronously analyze stock chart data using LangChain with historical data.
     
     :param stock_symbol: The stock symbol to analyze (e.g., 'AAPL')
     :param additional_context: Additional context or questions for the analysis
     :return: Analysis results
     """
-    try:
-        # Create the analysis chain
-        analysis_chain = create_stock_analysis_chain()
+    if not stock_symbol:
+        return "Error: No stock symbol provided."
         
-        # Use invoke() instead of run()
-        result = analysis_chain.invoke({
+    additional_context = additional_context or ""
+    
+    try:
+        # Create the async analysis chain
+        analysis_chain = create_async_stock_analysis_chain()
+        
+        # Use ainvoke() for asynchronous execution
+        result = await analysis_chain.ainvoke({
             "stock_symbol": stock_symbol,
             "additional_context": additional_context
         })
         
-        return result
+        return result or f"No analysis could be generated for {stock_symbol}."
     except Exception as e:
         print(f"LangChain Error: {str(e)}")
-        # Create a basic prompt for the fallback method
-        prompt = f"""
-        Analyze the stock data for {stock_symbol}.
-        
-        Additional context: {additional_context}
-        
-        Provide a technical analysis of this stock including price trends and volume analysis.
-        """
-        # Fall back to the original method
-        return fallback_analyze_stock_chart(prompt)
+        return f"Error analyzing {stock_symbol}. Please try again later."
